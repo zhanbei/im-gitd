@@ -1,4 +1,4 @@
-package main
+package sshd
 
 import (
 	"context"
@@ -15,6 +15,10 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport/server"
 	"golang.org/x/crypto/ssh"
 )
+
+func RunSshServer(dir, addr string) error {
+	return runSSH(dir, addr)
+}
 
 func runSSH(dir, addr string) error {
 	config := &ssh.ServerConfig{

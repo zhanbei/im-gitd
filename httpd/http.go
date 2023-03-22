@@ -1,4 +1,4 @@
-package main
+package httpd
 
 import (
 	"errors"
@@ -11,6 +11,10 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/server"
 )
+
+func RunHttpServer(dir, addr string) error {
+	return runHTTP(dir, addr)
+}
 
 func runHTTP(dir, addr string) error {
 	http.HandleFunc("/info/refs", httpInfoRefs(dir))
