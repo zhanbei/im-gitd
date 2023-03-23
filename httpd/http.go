@@ -8,20 +8,24 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/server"
+	"github.com/zhanbei/im-gitd/core"
 	"github.com/zhanbei/im-gitd/utils"
 )
 
-func RunHttpServer(dir, addr string) error {
+func RunHttpServer(addr string) error {
 	var router = http.NewServeMux()
-	router.HandleFunc("/info/refs", httpInfoRefs(dir))
-	router.HandleFunc("/git-upload-pack", httpGitUploadPack(dir))
-	router.HandleFunc("/git-receive-pack", httpGitReceivePack(dir))
+	router.HandleFunc("/info/refs", httpInfoRefs())
+	router.HandleFunc("/git-upload-pack", httpGitUploadPack())
+	router.HandleFunc("/git-receive-pack", httpGitReceivePack())
 
+	base := "/hello/world.git"
+	router.HandleFunc(base+"/info/refs", httpInfoRefs())
+	router.HandleFunc(base+"/git-upload-pack", httpGitUploadPack())
+	router.HandleFunc(base+"/git-receive-pack", httpGitReceivePack())
 	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
 	serv := &http.Server{
 		Addr: addr, ErrorLog: logger,
@@ -37,29 +41,10 @@ func RunHttpServer(dir, addr string) error {
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
-	return runHTTP(dir, addr)
-}
-
-var defer2delete = true
-
-func runHTTP(dir, addr string) error {
-	if defer2delete {
-		return nil
-	}
-	defer2delete = false
-	http.HandleFunc("/info/refs", httpInfoRefs(dir))
-	http.HandleFunc("/git-upload-pack", httpGitUploadPack(dir))
-	http.HandleFunc("/git-receive-pack", httpGitReceivePack(dir))
-
-	log.Println("starting http server on", addr)
-	err := http.ListenAndServe(addr, nil)
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
 	return nil
 }
 
-func httpInfoRefs(dir string) http.HandlerFunc {
+func httpInfoRefs() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		log.Printf("httpInfoRefs %s %s", r.Method, r.URL)
 
@@ -71,15 +56,18 @@ func httpInfoRefs(dir string) http.HandlerFunc {
 
 		rw.Header().Set("content-type", fmt.Sprintf("application/x-%s-advertisement", service))
 
+		target := "/"
+
 		ep, err := transport.NewEndpoint("/")
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
 			log.Println(err)
 			return
 		}
-		bfs := osfs.New(dir)
-		ld := server.NewFilesystemLoader(bfs)
-		svr := server.NewServer(ld)
+		// bfs := osfs.New(dir)
+		// ld := server.NewFilesystemLoader(bfs)
+		repo := core.GetTargetRepoLoader(target)
+		svr := server.NewServer(repo)
 
 		var sess transport.Session
 
@@ -118,7 +106,7 @@ func httpInfoRefs(dir string) http.HandlerFunc {
 	}
 }
 
-func httpGitUploadPack(dir string) http.HandlerFunc {
+func httpGitUploadPack() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		log.Printf("httpGitUploadPack %s %s", r.Method, r.URL)
 
@@ -132,16 +120,18 @@ func httpGitUploadPack(dir string) http.HandlerFunc {
 			return
 		}
 
+		target := "/"
+
 		ep, err := transport.NewEndpoint("/")
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
 			log.Println(err)
 			return
 		}
-		bfs := osfs.New(dir)
-		ld := server.NewFilesystemLoader(bfs)
-		svr := server.NewServer(ld)
-
+		// bfs := osfs.New(dir)
+		// ld := server.NewFilesystemLoader(bfs)
+		repo := core.GetTargetRepoLoader(target)
+		svr := server.NewServer(repo)
 		sess, err := svr.NewUploadPackSession(ep, nil)
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
@@ -164,7 +154,7 @@ func httpGitUploadPack(dir string) http.HandlerFunc {
 	}
 }
 
-func httpGitReceivePack(dir string) http.HandlerFunc {
+func httpGitReceivePack() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		log.Printf("httpGitReceivePack %s %s", r.Method, r.URL)
 
@@ -178,16 +168,18 @@ func httpGitReceivePack(dir string) http.HandlerFunc {
 			return
 		}
 
+		target := "/"
+
 		ep, err := transport.NewEndpoint("/")
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
 			log.Println(err)
 			return
 		}
-		bfs := osfs.New(dir)
-		ld := server.NewFilesystemLoader(bfs)
-		svr := server.NewServer(ld)
-
+		// bfs := osfs.New(dir)
+		// ld := server.NewFilesystemLoader(bfs)
+		repo := core.GetTargetRepoLoader(target)
+		svr := server.NewServer(repo)
 		sess, err := svr.NewReceivePackSession(ep, nil)
 		if err != nil {
 			http.Error(rw, err.Error(), 500)

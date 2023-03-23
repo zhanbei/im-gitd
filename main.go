@@ -25,7 +25,7 @@ func main() {
 		errc <- sshd.RunSshServer(*gitDir, *sshAddr)
 	}()
 	go func() {
-		errc <- httpd.RunHttpServer(*gitDir, *httpAddr)
+		errc <- httpd.RunHttpServer(*httpAddr)
 	}()
 	for i := 0; i < cap(errc); i++ {
 		err := <-errc
