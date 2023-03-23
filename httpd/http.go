@@ -5,19 +5,48 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/server"
+	"github.com/zhanbei/im-gitd/utils"
 )
 
 func RunHttpServer(dir, addr string) error {
+	var router = http.NewServeMux()
+	router.HandleFunc("/info/refs", httpInfoRefs(dir))
+	router.HandleFunc("/git-upload-pack", httpGitUploadPack(dir))
+	router.HandleFunc("/git-receive-pack", httpGitReceivePack(dir))
+
+	logger := log.New(os.Stdout, "http: ", log.LstdFlags)
+	serv := &http.Server{
+		Addr: addr, ErrorLog: logger,
+
+		Handler: utils.HttpRouterLogging(logger, router),
+
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
+	}
+	logger.Println("starting http server on", addr)
+	err := serv.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
 	return runHTTP(dir, addr)
 }
 
+var defer2delete = true
+
 func runHTTP(dir, addr string) error {
+	if defer2delete {
+		return nil
+	}
+	defer2delete = false
 	http.HandleFunc("/info/refs", httpInfoRefs(dir))
 	http.HandleFunc("/git-upload-pack", httpGitUploadPack(dir))
 	http.HandleFunc("/git-receive-pack", httpGitReceivePack(dir))
@@ -112,6 +141,7 @@ func httpGitUploadPack(dir string) http.HandlerFunc {
 		bfs := osfs.New(dir)
 		ld := server.NewFilesystemLoader(bfs)
 		svr := server.NewServer(ld)
+
 		sess, err := svr.NewUploadPackSession(ep, nil)
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
@@ -157,6 +187,7 @@ func httpGitReceivePack(dir string) http.HandlerFunc {
 		bfs := osfs.New(dir)
 		ld := server.NewFilesystemLoader(bfs)
 		svr := server.NewServer(ld)
+
 		sess, err := svr.NewReceivePackSession(ep, nil)
 		if err != nil {
 			http.Error(rw, err.Error(), 500)
